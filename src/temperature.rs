@@ -6,9 +6,8 @@
 use std::mem;
 
 use windows_sys::Win32::System::Performance::{
-    PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData,
-    PdhGetFormattedCounterValue, PdhOpenQueryW, PDH_FMT_COUNTERVALUE,
-    PDH_FMT_DOUBLE,
+    PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE, PdhAddEnglishCounterW, PdhCloseQuery,
+    PdhCollectQueryData, PdhGetFormattedCounterValue, PdhOpenQueryW,
 };
 
 /// Temperaturas recopiladas de los componentes.
@@ -58,7 +57,13 @@ impl RecolectorTemperaturas {
             unsafe {
                 if PdhCollectQueryData(query) == 0 {
                     let mut val: PDH_FMT_COUNTERVALUE = mem::zeroed();
-                    if PdhGetFormattedCounterValue(c, PDH_FMT_DOUBLE, std::ptr::null_mut(), &mut val) == 0 {
+                    if PdhGetFormattedCounterValue(
+                        c,
+                        PDH_FMT_DOUBLE,
+                        std::ptr::null_mut(),
+                        &mut val,
+                    ) == 0
+                    {
                         let kelvin = val.Anonymous.doubleValue;
                         if kelvin > 200.0 && kelvin < 450.0 {
                             cpu_temp = Some(kelvin - 273.15);

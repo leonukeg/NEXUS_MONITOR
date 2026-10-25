@@ -196,9 +196,8 @@ impl RecolectorProcesos {
                 // Obtener nombre del proceso
                 let nombre = if entry.ImageName.Length > 0 && !entry.ImageName.Buffer.is_null() {
                     let chars_count = (entry.ImageName.Length / 2) as usize;
-                    let slice = unsafe {
-                        slice::from_raw_parts(entry.ImageName.Buffer, chars_count)
-                    };
+                    let slice =
+                        unsafe { slice::from_raw_parts(entry.ImageName.Buffer, chars_count) };
                     String::from_utf16_lossy(slice)
                 } else if pid == 4 {
                     "System".to_string()

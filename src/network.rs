@@ -15,10 +15,9 @@ use std::time::Instant;
 
 use windows_sys::Win32::Foundation::ERROR_BUFFER_OVERFLOW;
 use windows_sys::Win32::NetworkManagement::IpHelper::{
-    GetAdaptersAddresses, GetIfEntry2, GAA_FLAG_INCLUDE_GATEWAYS,
-    IF_TYPE_ETHERNET_CSMACD, IF_TYPE_IEEE80211, IF_TYPE_PROP_VIRTUAL,
-    IF_TYPE_SOFTWARE_LOOPBACK, IF_TYPE_TUNNEL, IP_ADAPTER_ADDRESSES_LH,
-    MIB_IF_ROW2,
+    GAA_FLAG_INCLUDE_GATEWAYS, GetAdaptersAddresses, GetIfEntry2, IF_TYPE_ETHERNET_CSMACD,
+    IF_TYPE_IEEE80211, IF_TYPE_PROP_VIRTUAL, IF_TYPE_SOFTWARE_LOOPBACK, IF_TYPE_TUNNEL,
+    IP_ADAPTER_ADDRESSES_LH, MIB_IF_ROW2,
 };
 use windows_sys::Win32::Networking::WinSock::{
     AF_INET, AF_INET6, AF_UNSPEC, SOCKADDR_IN, SOCKADDR_IN6,
@@ -53,8 +52,8 @@ impl TipoConexion {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EstadoVPN {
     ConectadaEncaminada, // Hay un adaptador VPN activo y el tráfico sale por él
-    DetectadaDirecta,    // Hay un adaptador VPN presente, pero el tráfico principal sale por Ethernet/Wi-Fi
-    NoDetectada,         // No se han detectado adaptadores VPN
+    DetectadaDirecta, // Hay un adaptador VPN presente, pero el tráfico principal sale por Ethernet/Wi-Fi
+    NoDetectada,      // No se han detectado adaptadores VPN
 }
 
 /// Información completa de red lista para presentar en la interfaz.
@@ -135,18 +134,19 @@ impl RecolectorRed {
             let (bytes_rx, bytes_tx) = self.obtener_octetos_interfaz(idx_actual);
 
             // 3. Calculamos la velocidad en bytes por segundo
-            let (vel_rx, vel_tx) = if let (Some(t_prev), false) = (self.tiempo_prev, self.primera_lectura) {
-                let delta_t = ahora.duration_since(t_prev).as_secs_f64();
-                if delta_t > 0.05 && self.interfaz_activa_idx == Some(idx_actual) {
-                    let rx = bytes_rx.saturating_sub(self.bytes_rx_prev) as f64 / delta_t;
-                    let tx = bytes_tx.saturating_sub(self.bytes_tx_prev) as f64 / delta_t;
-                    (rx, tx)
+            let (vel_rx, vel_tx) =
+                if let (Some(t_prev), false) = (self.tiempo_prev, self.primera_lectura) {
+                    let delta_t = ahora.duration_since(t_prev).as_secs_f64();
+                    if delta_t > 0.05 && self.interfaz_activa_idx == Some(idx_actual) {
+                        let rx = bytes_rx.saturating_sub(self.bytes_rx_prev) as f64 / delta_t;
+                        let tx = bytes_tx.saturating_sub(self.bytes_tx_prev) as f64 / delta_t;
+                        (rx, tx)
+                    } else {
+                        (0.0, 0.0)
+                    }
                 } else {
                     (0.0, 0.0)
-                }
-            } else {
-                (0.0, 0.0)
-            };
+                };
 
             self.bytes_rx_prev = bytes_rx;
             self.bytes_tx_prev = bytes_tx;
@@ -198,7 +198,9 @@ impl RecolectorRed {
     }
 
     /// Invoca `GetAdaptersAddresses` de la API Win32 de Windows.
-    fn obtener_adaptadores_windows(&self) -> (Vec<DatosAdaptadorInterno>, (EstadoVPN, Option<String>)) {
+    fn obtener_adaptadores_windows(
+        &self,
+    ) -> (Vec<DatosAdaptadorInterno>, (EstadoVPN, Option<String>)) {
         let mut buffer: Vec<u8> = vec![0; 16384];
         let mut tamano: u32 = buffer.len() as u32;
 
@@ -288,7 +290,12 @@ impl RecolectorRed {
                             if familia == AF_INET {
                                 let sa_in = sockaddr as *const SOCKADDR_IN;
                                 let octetos = (*sa_in).sin_addr.S_un.S_un_b;
-                                let ip = Ipv4Addr::new(octetos.s_b1, octetos.s_b2, octetos.s_b3, octetos.s_b4);
+                                let ip = Ipv4Addr::new(
+                                    octetos.s_b1,
+                                    octetos.s_b2,
+                                    octetos.s_b3,
+                                    octetos.s_b4,
+                                );
                                 // Evitar 127.0.0.1 o IPs de autoconfiguración 169.254.x.x
                                 if !ip.is_loopback() && !ip.is_link_local() {
                                     ipv4_encontrada = Some(ip.to_string());
@@ -309,7 +316,9 @@ impl RecolectorRed {
                         IF_TYPE_ETHERNET_CSMACD => {
                             if es_firma_vpn {
                                 TipoConexion::VPN
-                            } else if desc_lower.contains("virtual") || desc_lower.contains("hyper-v") {
+                            } else if desc_lower.contains("virtual")
+                                || desc_lower.contains("hyper-v")
+                            {
                                 TipoConexion::Virtual
                             } else {
                                 TipoConexion::Ethernet
@@ -341,7 +350,10 @@ impl RecolectorRed {
 
         // Si ningún adaptador fue marcado con gateway (caso de redes directas), elegimos el primer Wi-Fi o Ethernet
         if !adaptadores.iter().any(|a| a.es_principal) {
-            if let Some(primer_candidato) = adaptadores.iter_mut().find(|a| a.tipo == TipoConexion::WiFi || a.tipo == TipoConexion::Ethernet) {
+            if let Some(primer_candidato) = adaptadores
+                .iter_mut()
+                .find(|a| a.tipo == TipoConexion::WiFi || a.tipo == TipoConexion::Ethernet)
+            {
                 primer_candidato.es_principal = true;
             } else if let Some(primero) = adaptadores.first_mut() {
                 primero.es_principal = true;

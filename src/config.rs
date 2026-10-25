@@ -51,17 +51,17 @@ pub struct ConfigModulos {
 /// Paleta de colores visual para el panel.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigColores {
-    pub fondo: String,             // Color de fondo del panel (ej: "#14151C")
-    pub fondo_tarjeta: String,     // Fondo de tarjetas internas (ej: "#1E202A")
-    pub borde: String,             // Borde perimetral fino (ej: "#2B2E3C")
-    pub acento_cpu: String,        // Color de CPU (ej: "#38BDF8")
-    pub acento_cpu_alto: String,   // Color si la CPU supera el 75% (ej: "#FB923C")
-    pub acento_ram: String,        // Color de RAM (ej: "#2DD4BF")
-    pub acento_ram_alto: String,   // Color si la RAM supera el 85% (ej: "#F43F5E")
-    pub acento_descarga: String,   // Flecha de descarga (ej: "#2DD4BF")
-    pub acento_subida: String,     // Flecha de subida (ej: "#FB923C")
-    pub acento_gpu: String,        // Color de GPU (ej: "#C084FC" violeta)
-    pub acento_disco: String,      // Color de Disco (ej: "#FACC15" ámbar)
+    pub fondo: String,            // Color de fondo del panel (ej: "#14151C")
+    pub fondo_tarjeta: String,    // Fondo de tarjetas internas (ej: "#1E202A")
+    pub borde: String,            // Borde perimetral fino (ej: "#2B2E3C")
+    pub acento_cpu: String,       // Color de CPU (ej: "#38BDF8")
+    pub acento_cpu_alto: String,  // Color si la CPU supera el 75% (ej: "#FB923C")
+    pub acento_ram: String,       // Color de RAM (ej: "#2DD4BF")
+    pub acento_ram_alto: String,  // Color si la RAM supera el 85% (ej: "#F43F5E")
+    pub acento_descarga: String,  // Flecha de descarga (ej: "#2DD4BF")
+    pub acento_subida: String,    // Flecha de subida (ej: "#FB923C")
+    pub acento_gpu: String,       // Color de GPU (ej: "#C084FC" violeta)
+    pub acento_disco: String,     // Color de Disco (ej: "#FACC15" ámbar)
     pub texto_principal: String,  // Texto de etiquetas principales (ej: "#FFFFFF")
     pub texto_secundario: String, // Texto de subtítulos y detalles (ej: "#94A3B8")
 }

@@ -9,14 +9,13 @@ use std::ptr;
 
 use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDriveStringsW,
-    GetVolumeInformationW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, GetDiskFreeSpaceExW, GetDriveTypeW,
+    GetLogicalDriveStringsW, GetVolumeInformationW, OPEN_EXISTING,
 };
 use windows_sys::Win32::System::IO::DeviceIoControl;
 use windows_sys::Win32::System::Performance::{
-    PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData,
-    PdhGetFormattedCounterValue, PdhOpenQueryW, PDH_FMT_COUNTERVALUE,
-    PDH_FMT_DOUBLE,
+    PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE, PdhAddEnglishCounterW, PdhCloseQuery,
+    PdhCollectQueryData, PdhGetFormattedCounterValue, PdhOpenQueryW,
 };
 
 /// Información detallada de una unidad de almacenamiento accesible.
@@ -140,14 +139,18 @@ impl RecolectorDiscos {
                                         0,
                                     );
                                     let etiqueta = if ok_vol != 0 {
-                                        let pos_null = vol_name.iter().position(|&c| c == 0).unwrap_or(0);
-                                        String::from_utf16_lossy(&vol_name[..pos_null]).trim().to_string()
+                                        let pos_null =
+                                            vol_name.iter().position(|&c| c == 0).unwrap_or(0);
+                                        String::from_utf16_lossy(&vol_name[..pos_null])
+                                            .trim()
+                                            .to_string()
                                     } else {
                                         String::new()
                                     };
 
                                     // Tipo de medio (SSD, HDD, USB)
-                                    let tipo_medio = determinar_tipo_medio(&letra_corta, tipo_drive);
+                                    let tipo_medio =
+                                        determinar_tipo_medio(&letra_corta, tipo_drive);
 
                                     unidades.push(InfoDisco {
                                         letra: letra_corta,
@@ -182,16 +185,22 @@ impl RecolectorDiscos {
         let mut vel_r = 0.0;
         let mut vel_w = 0.0;
 
-        if let (Some(query), Some(c_r), Some(c_w)) = (self.query_pdh, self.counter_read, self.counter_write) {
+        if let (Some(query), Some(c_r), Some(c_w)) =
+            (self.query_pdh, self.counter_read, self.counter_write)
+        {
             unsafe {
                 if PdhCollectQueryData(query) == 0 {
                     let mut val_r: PDH_FMT_COUNTERVALUE = mem::zeroed();
                     let mut val_w: PDH_FMT_COUNTERVALUE = mem::zeroed();
 
-                    if PdhGetFormattedCounterValue(c_r, PDH_FMT_DOUBLE, ptr::null_mut(), &mut val_r) == 0 {
+                    if PdhGetFormattedCounterValue(c_r, PDH_FMT_DOUBLE, ptr::null_mut(), &mut val_r)
+                        == 0
+                    {
                         vel_r = val_r.Anonymous.doubleValue.max(0.0);
                     }
-                    if PdhGetFormattedCounterValue(c_w, PDH_FMT_DOUBLE, ptr::null_mut(), &mut val_w) == 0 {
+                    if PdhGetFormattedCounterValue(c_w, PDH_FMT_DOUBLE, ptr::null_mut(), &mut val_w)
+                        == 0
+                    {
                         vel_w = val_w.Anonymous.doubleValue.max(0.0);
                     }
                 }
@@ -259,12 +268,8 @@ fn determinar_tipo_medio(letra: &str, tipo_drive: u32) -> String {
 
             if ok_bus != 0 && bytes_ret >= 32 {
                 // BusType se ubica en el offset 28 como u32 little-endian
-                let bus_type = u32::from_ne_bytes([
-                    out_buf[28],
-                    out_buf[29],
-                    out_buf[30],
-                    out_buf[31],
-                ]);
+                let bus_type =
+                    u32::from_ne_bytes([out_buf[28], out_buf[29], out_buf[30], out_buf[31]]);
 
                 // BusTypeUsb = 0x07
                 if bus_type == 7 {

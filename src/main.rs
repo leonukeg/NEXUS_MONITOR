@@ -17,44 +17,42 @@ mod disks;
 mod gpu;
 mod metrics;
 mod network;
+mod processes;
 mod temperature;
 mod ui_config;
-mod processes;
 
 use std::mem;
 use std::ptr;
 use std::sync::Mutex;
 
-use config::{cargar_o_crear_por_defecto, guardar_posicion_en_disco, hex_a_bgr, Configuracion};
+use config::{Configuracion, cargar_o_crear_por_defecto, guardar_posicion_en_disco, hex_a_bgr};
 use disks::{EstadoDiscos, RecolectorDiscos};
 use gpu::{InfoGPU, RecolectorGPU};
 use metrics::{MemoriaInfo, RecolectorMetricas};
-use network::{formatear_velocidad, EstadoVPN, InfoRed, RecolectorRed, TipoConexion};
+use network::{EstadoVPN, InfoRed, RecolectorRed, TipoConexion, formatear_velocidad};
 use processes::{InfoProceso, ModoTopProcesos, RecolectorProcesos};
 use temperature::{InfoTemperaturas, RecolectorTemperaturas};
 use ui_config::abrir_ventana_configuracion;
 
 use windows_sys::Win32::Foundation::{
-    GetLastError, ERROR_ALREADY_EXISTS, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
+    ERROR_ALREADY_EXISTS, GetLastError, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM,
 };
 use windows_sys::Win32::Graphics::Gdi::{
-    BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontW,
-    CreatePen, CreateRoundRectRgn, CreateSolidBrush, DeleteDC, DeleteObject,
-    DrawTextW, EndPaint, FillRect, GetStockObject, HDC, InvalidateRect, Polygon,
-    Polyline, ScreenToClient, SelectObject, SetBkMode, SetTextColor, SetWindowRgn,
-    DT_CENTER, DT_LEFT, DT_NOPREFIX, DT_RIGHT, DT_SINGLELINE, DT_VCENTER,
-    NULL_PEN, PAINTSTRUCT, PS_SOLID, SRCCOPY, TRANSPARENT,
+    BeginPaint, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, CreateFontW, CreatePen,
+    CreateRoundRectRgn, CreateSolidBrush, DT_CENTER, DT_LEFT, DT_NOPREFIX, DT_RIGHT, DT_SINGLELINE,
+    DT_VCENTER, DeleteDC, DeleteObject, DrawTextW, EndPaint, FillRect, GetStockObject, HDC,
+    InvalidateRect, NULL_PEN, PAINTSTRUCT, PS_SOLID, Polygon, Polyline, SRCCOPY, ScreenToClient,
+    SelectObject, SetBkMode, SetTextColor, SetWindowRgn, TRANSPARENT,
 };
 use windows_sys::Win32::System::Threading::CreateMutexW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, FindWindowW,
-    GetCursorPos, GetMessageW, GetSystemMetrics, KillTimer, LoadCursorW, PostQuitMessage,
-    RegisterClassW, SetForegroundWindow, SetLayeredWindowAttributes, SetTimer, SetWindowPos,
-    ShowWindow, TranslateMessage, CS_HREDRAW, CS_VREDRAW, HTCAPTION,
-    HTCLIENT, IDC_ARROW, LWA_ALPHA, MSG, SM_CXSCREEN, SWP_NOMOVE, SWP_NOZORDER, SW_SHOW,
-    WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DEVICECHANGE, WM_LBUTTONUP, WM_MOVE,
-    WM_NCHITTEST, WM_NCMOUSELEAVE, WM_PAINT, WM_TIMER, WNDCLASSW, WS_EX_LAYERED,
-    WS_POPUP, WS_SYSMENU, WS_VISIBLE,
+    CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
+    FindWindowW, GetCursorPos, GetMessageW, GetSystemMetrics, HTCAPTION, HTCLIENT, IDC_ARROW,
+    KillTimer, LWA_ALPHA, LoadCursorW, MSG, PostQuitMessage, RegisterClassW, SM_CXSCREEN, SW_SHOW,
+    SWP_NOMOVE, SWP_NOZORDER, SetForegroundWindow, SetLayeredWindowAttributes, SetTimer,
+    SetWindowPos, ShowWindow, TranslateMessage, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DEVICECHANGE,
+    WM_LBUTTONUP, WM_MOVE, WM_NCHITTEST, WM_NCMOUSELEAVE, WM_PAINT, WM_TIMER, WNDCLASSW,
+    WS_EX_LAYERED, WS_POPUP, WS_SYSMENU, WS_VISIBLE,
 };
 
 const WM_MOUSELEAVE: u32 = 0x02A3;
@@ -124,7 +122,10 @@ static ESTADO: Mutex<Option<EstadoApp>> = Mutex::new(None);
 /// Trunca un texto si excede `max_caracteres`, agregando ".." al final sin desbordar.
 fn truncar_texto(texto: &str, max_caracteres: usize) -> String {
     if texto.chars().count() > max_caracteres {
-        let trunc: String = texto.chars().take(max_caracteres.saturating_sub(2)).collect();
+        let trunc: String = texto
+            .chars()
+            .take(max_caracteres.saturating_sub(2))
+            .collect();
         format!("{}..", trunc)
     } else {
         texto.to_string()
@@ -199,9 +200,15 @@ fn mezclar_color_bgr(color_base: u32, color_tinte: u32, factor: f64) -> u32 {
     let g_tinte = ((color_tinte >> 8) & 0xFF) as f64;
     let r_tinte = ((color_tinte >> 16) & 0xFF) as f64;
 
-    let b = (b_base + (b_tinte - b_base) * factor).round().clamp(0.0, 255.0) as u32;
-    let g = (g_base + (g_tinte - g_base) * factor).round().clamp(0.0, 255.0) as u32;
-    let r = (r_base + (r_tinte - r_base) * factor).round().clamp(0.0, 255.0) as u32;
+    let b = (b_base + (b_tinte - b_base) * factor)
+        .round()
+        .clamp(0.0, 255.0) as u32;
+    let g = (g_base + (g_tinte - g_base) * factor)
+        .round()
+        .clamp(0.0, 255.0) as u32;
+    let r = (r_base + (r_tinte - r_base) * factor)
+        .round()
+        .clamp(0.0, 255.0) as u32;
 
     (r << 16) | (g << 8) | b
 }
@@ -329,11 +336,86 @@ fn pintar_panel(
         let font_nombre = a_wstring(&config.tipografia.fuente);
         let tam_base = config.tipografia.tamano_base;
 
-        let font_encabezado = CreateFontW(tam_base - 1, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 2, font_nombre.as_ptr());
-        let font_etiquetas = CreateFontW(tam_base, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 2, font_nombre.as_ptr());
-        let font_valores = CreateFontW(tam_base, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 2, font_nombre.as_ptr());
-        let font_detalle = CreateFontW(tam_base - 1, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 2, font_nombre.as_ptr());
-        let font_flechas = CreateFontW(tam_base, 0, 0, 0, 400, 0, 0, 0, 1, 0, 0, 5, 2, font_nombre.as_ptr());
+        let font_encabezado = CreateFontW(
+            tam_base - 1,
+            0,
+            0,
+            0,
+            400,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            5,
+            2,
+            font_nombre.as_ptr(),
+        );
+        let font_etiquetas = CreateFontW(
+            tam_base,
+            0,
+            0,
+            0,
+            400,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            5,
+            2,
+            font_nombre.as_ptr(),
+        );
+        let font_valores = CreateFontW(
+            tam_base,
+            0,
+            0,
+            0,
+            400,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            5,
+            2,
+            font_nombre.as_ptr(),
+        );
+        let font_detalle = CreateFontW(
+            tam_base - 1,
+            0,
+            0,
+            0,
+            400,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            5,
+            2,
+            font_nombre.as_ptr(),
+        );
+        let font_flechas = CreateFontW(
+            tam_base,
+            0,
+            0,
+            0,
+            400,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            5,
+            2,
+            font_nombre.as_ptr(),
+        );
 
         let pad_x = 16;
         let ancho_util = ancho - (pad_x * 2);
@@ -343,9 +425,27 @@ fn pintar_panel(
 
         // --- BLOQUE CPU ---
         if config.modulos.mostrar_cpu {
-            let alto_card_cpu = if config.modulos.mostrar_graficas { 76 } else { 38 };
-            rellenar_rect(mem_dc, pad_x, y_cursor, pad_x + ancho_util, y_cursor + alto_card_cpu, color_tarjeta);
-            rellenar_rect(mem_dc, pad_x, y_cursor, pad_x + ancho_util, y_cursor + 1, color_borde);
+            let alto_card_cpu = if config.modulos.mostrar_graficas {
+                76
+            } else {
+                38
+            };
+            rellenar_rect(
+                mem_dc,
+                pad_x,
+                y_cursor,
+                pad_x + ancho_util,
+                y_cursor + alto_card_cpu,
+                color_tarjeta,
+            );
+            rellenar_rect(
+                mem_dc,
+                pad_x,
+                y_cursor,
+                pad_x + ancho_util,
+                y_cursor + 1,
+                color_borde,
+            );
 
             SelectObject(mem_dc, font_etiquetas);
             let mut rect_cpu_label = RECT {
@@ -359,7 +459,14 @@ fn pintar_panel(
                 Some(ghz) => format!("⚡ CPU  {:.2} GHz", ghz),
                 None => "⚡ CPU".to_string(),
             };
-            dibujar_texto(mem_dc, &etiqueta_cpu, &mut rect_cpu_label, color_texto_principal, false, false);
+            dibujar_texto(
+                mem_dc,
+                &etiqueta_cpu,
+                &mut rect_cpu_label,
+                color_texto_principal,
+                false,
+                false,
+            );
 
             SelectObject(mem_dc, font_valores);
             let mut rect_cpu_val = RECT {
@@ -369,7 +476,14 @@ fn pintar_panel(
                 bottom: y_cursor + 24,
             };
             let texto_cpu = format!("{:>4.1}%", uso_cpu);
-            dibujar_texto(mem_dc, &texto_cpu, &mut rect_cpu_val, color_acento_cpu, true, false);
+            dibujar_texto(
+                mem_dc,
+                &texto_cpu,
+                &mut rect_cpu_val,
+                color_acento_cpu,
+                true,
+                false,
+            );
 
             if config.modulos.mostrar_graficas {
                 let gx = pad_x + 8;
@@ -377,7 +491,16 @@ fn pintar_panel(
                 let gw = ancho_util - 16;
                 let gh = 40;
                 rellenar_rect(mem_dc, gx, gy + gh - 1, gx + gw, gy + gh, 0x002B2420);
-                dibujar_grafica_linea(mem_dc, historial_cpu, gx, gy, gw, gh, color_acento_cpu, color_tarjeta);
+                dibujar_grafica_linea(
+                    mem_dc,
+                    historial_cpu,
+                    gx,
+                    gy,
+                    gw,
+                    gh,
+                    color_acento_cpu,
+                    color_tarjeta,
+                );
             }
 
             y_cursor += alto_card_cpu + 10;
@@ -386,26 +509,68 @@ fn pintar_panel(
         // --- BLOQUE RAM ---
         if config.modulos.mostrar_ram {
             SelectObject(mem_dc, font_etiquetas);
-            let mut rect_ram_label = RECT { left: pad_x, top: y_cursor, right: pad_x + 130, bottom: y_cursor + 18 };
+            let mut rect_ram_label = RECT {
+                left: pad_x,
+                top: y_cursor,
+                right: pad_x + 130,
+                bottom: y_cursor + 18,
+            };
             let (ram_pct, texto_ram) = match memoria {
-                Some(m) => (m.porcentaje_uso, format!("{:.1} / {:.1} GB", m.usada_gb, m.total_gb)),
+                Some(m) => (
+                    m.porcentaje_uso,
+                    format!("{:.1} / {:.1} GB", m.usada_gb, m.total_gb),
+                ),
                 None => (0.0, "Consultando...".to_string()),
             };
             let etiqueta_ram = format!("▦ RAM: {:.0}%", ram_pct);
-            dibujar_texto(mem_dc, &etiqueta_ram, &mut rect_ram_label, color_texto_principal, false, false);
+            dibujar_texto(
+                mem_dc,
+                &etiqueta_ram,
+                &mut rect_ram_label,
+                color_texto_principal,
+                false,
+                false,
+            );
 
             SelectObject(mem_dc, font_detalle);
-            let mut rect_ram_val = RECT { left: pad_x + ancho_util - 120, top: y_cursor + 2, right: pad_x + ancho_util, bottom: y_cursor + 18 };
-            dibujar_texto(mem_dc, &texto_ram, &mut rect_ram_val, color_texto_secundario, true, false);
+            let mut rect_ram_val = RECT {
+                left: pad_x + ancho_util - 120,
+                top: y_cursor + 2,
+                right: pad_x + ancho_util,
+                bottom: y_cursor + 18,
+            };
+            dibujar_texto(
+                mem_dc,
+                &texto_ram,
+                &mut rect_ram_val,
+                color_texto_secundario,
+                true,
+                false,
+            );
 
             let y_barra_ram = y_cursor + 20;
             let alto_barra = 4;
             let fondo_barra = 0x0026221E;
-            rellenar_rect(mem_dc, pad_x, y_barra_ram, pad_x + ancho_util, y_barra_ram + alto_barra, fondo_barra);
+            rellenar_rect(
+                mem_dc,
+                pad_x,
+                y_barra_ram,
+                pad_x + ancho_util,
+                y_barra_ram + alto_barra,
+                fondo_barra,
+            );
 
-            let relleno_ram_w = ((ancho_util as f64) * (ram_pct.clamp(0.0, 100.0) / 100.0)).round() as i32;
+            let relleno_ram_w =
+                ((ancho_util as f64) * (ram_pct.clamp(0.0, 100.0) / 100.0)).round() as i32;
             if relleno_ram_w > 0 {
-                rellenar_rect(mem_dc, pad_x, y_barra_ram, pad_x + relleno_ram_w, y_barra_ram + alto_barra, color_acento_ram);
+                rellenar_rect(
+                    mem_dc,
+                    pad_x,
+                    y_barra_ram,
+                    pad_x + relleno_ram_w,
+                    y_barra_ram + alto_barra,
+                    color_acento_ram,
+                );
             }
 
             y_cursor += 30;
@@ -414,23 +579,66 @@ fn pintar_panel(
         // --- BLOQUE GPU ---
         if config.modulos.mostrar_gpu {
             SelectObject(mem_dc, font_etiquetas);
-            let mut rect_gpu_label = RECT { left: pad_x, top: y_cursor, right: pad_x + 130, bottom: y_cursor + 18 };
+            let mut rect_gpu_label = RECT {
+                left: pad_x,
+                top: y_cursor,
+                right: pad_x + 130,
+                bottom: y_cursor + 18,
+            };
             let etiqueta_gpu = format!("🎮 GPU: {:.0}%", gpu.uso_porcentaje);
-            dibujar_texto(mem_dc, &etiqueta_gpu, &mut rect_gpu_label, color_texto_principal, false, false);
+            dibujar_texto(
+                mem_dc,
+                &etiqueta_gpu,
+                &mut rect_gpu_label,
+                color_texto_principal,
+                false,
+                false,
+            );
 
             SelectObject(mem_dc, font_detalle);
-            let mut rect_gpu_vram = RECT { left: pad_x + ancho_util - 130, top: y_cursor + 2, right: pad_x + ancho_util, bottom: y_cursor + 18 };
-            let texto_vram = format!("{:.0} / {:.0} MB", gpu.vram_dedicada_usada_mb, gpu.vram_dedicada_total_mb);
-            dibujar_texto(mem_dc, &texto_vram, &mut rect_gpu_vram, color_texto_secundario, true, false);
+            let mut rect_gpu_vram = RECT {
+                left: pad_x + ancho_util - 130,
+                top: y_cursor + 2,
+                right: pad_x + ancho_util,
+                bottom: y_cursor + 18,
+            };
+            let texto_vram = format!(
+                "{:.0} / {:.0} MB",
+                gpu.vram_dedicada_usada_mb, gpu.vram_dedicada_total_mb
+            );
+            dibujar_texto(
+                mem_dc,
+                &texto_vram,
+                &mut rect_gpu_vram,
+                color_texto_secundario,
+                true,
+                false,
+            );
 
             let y_barra_gpu = y_cursor + 20;
             let alto_barra = 4;
             let fondo_barra = 0x0026221E;
-            rellenar_rect(mem_dc, pad_x, y_barra_gpu, pad_x + ancho_util, y_barra_gpu + alto_barra, fondo_barra);
+            rellenar_rect(
+                mem_dc,
+                pad_x,
+                y_barra_gpu,
+                pad_x + ancho_util,
+                y_barra_gpu + alto_barra,
+                fondo_barra,
+            );
 
-            let relleno_gpu_w = ((ancho_util as f64) * (gpu.uso_porcentaje.clamp(0.0, 100.0) / 100.0)).round() as i32;
+            let relleno_gpu_w = ((ancho_util as f64)
+                * (gpu.uso_porcentaje.clamp(0.0, 100.0) / 100.0))
+                .round() as i32;
             if relleno_gpu_w > 0 {
-                rellenar_rect(mem_dc, pad_x, y_barra_gpu, pad_x + relleno_gpu_w, y_barra_gpu + alto_barra, color_acento_gpu);
+                rellenar_rect(
+                    mem_dc,
+                    pad_x,
+                    y_barra_gpu,
+                    pad_x + relleno_gpu_w,
+                    y_barra_gpu + alto_barra,
+                    color_acento_gpu,
+                );
             }
 
             y_cursor += 30;
@@ -458,38 +666,122 @@ fn pintar_panel(
                 "Sin conexión".to_string()
             };
 
-            let mut rect_sub_red = RECT { left: pad_x, top: y_cursor, right: pad_x + ancho_util, bottom: y_cursor + 16 };
-            dibujar_texto(mem_dc, &texto_red, &mut rect_sub_red, color_texto_secundario, false, false);
+            let mut rect_sub_red = RECT {
+                left: pad_x,
+                top: y_cursor,
+                right: pad_x + ancho_util,
+                bottom: y_cursor + 16,
+            };
+            dibujar_texto(
+                mem_dc,
+                &texto_red,
+                &mut rect_sub_red,
+                color_texto_secundario,
+                false,
+                false,
+            );
             y_cursor += 18;
 
             // Descarga
             SelectObject(mem_dc, font_flechas);
-            let mut rect_f_down = RECT { left: pad_x, top: y_cursor + 1, right: pad_x + 16, bottom: y_cursor + 19 };
-            dibujar_texto(mem_dc, "↓", &mut rect_f_down, color_acento_descarga, false, false);
+            let mut rect_f_down = RECT {
+                left: pad_x,
+                top: y_cursor + 1,
+                right: pad_x + 16,
+                bottom: y_cursor + 19,
+            };
+            dibujar_texto(
+                mem_dc,
+                "↓",
+                &mut rect_f_down,
+                color_acento_descarga,
+                false,
+                false,
+            );
 
             SelectObject(mem_dc, font_etiquetas);
-            let mut rect_lbl_down = RECT { left: pad_x + 18, top: y_cursor + 1, right: pad_x + 100, bottom: y_cursor + 19 };
-            dibujar_texto(mem_dc, "Descarga", &mut rect_lbl_down, color_texto_secundario, false, false);
+            let mut rect_lbl_down = RECT {
+                left: pad_x + 18,
+                top: y_cursor + 1,
+                right: pad_x + 100,
+                bottom: y_cursor + 19,
+            };
+            dibujar_texto(
+                mem_dc,
+                "Descarga",
+                &mut rect_lbl_down,
+                color_texto_secundario,
+                false,
+                false,
+            );
 
             SelectObject(mem_dc, font_valores);
-            let mut rect_v_down = RECT { left: pad_x + ancho_util - 120, top: y_cursor + 1, right: pad_x + ancho_util, bottom: y_cursor + 19 };
+            let mut rect_v_down = RECT {
+                left: pad_x + ancho_util - 120,
+                top: y_cursor + 1,
+                right: pad_x + ancho_util,
+                bottom: y_cursor + 19,
+            };
             let txt_vel_down = formatear_velocidad(red.velocidad_descarga_bps);
-            dibujar_texto(mem_dc, &txt_vel_down, &mut rect_v_down, color_texto_principal, true, false);
+            dibujar_texto(
+                mem_dc,
+                &txt_vel_down,
+                &mut rect_v_down,
+                color_texto_principal,
+                true,
+                false,
+            );
             y_cursor += 22;
 
             // Subida
             SelectObject(mem_dc, font_flechas);
-            let mut rect_f_up = RECT { left: pad_x, top: y_cursor + 1, right: pad_x + 16, bottom: y_cursor + 19 };
-            dibujar_texto(mem_dc, "↑", &mut rect_f_up, color_acento_subida, false, false);
+            let mut rect_f_up = RECT {
+                left: pad_x,
+                top: y_cursor + 1,
+                right: pad_x + 16,
+                bottom: y_cursor + 19,
+            };
+            dibujar_texto(
+                mem_dc,
+                "↑",
+                &mut rect_f_up,
+                color_acento_subida,
+                false,
+                false,
+            );
 
             SelectObject(mem_dc, font_etiquetas);
-            let mut rect_lbl_up = RECT { left: pad_x + 18, top: y_cursor + 1, right: pad_x + 100, bottom: y_cursor + 19 };
-            dibujar_texto(mem_dc, "Subida", &mut rect_lbl_up, color_texto_secundario, false, false);
+            let mut rect_lbl_up = RECT {
+                left: pad_x + 18,
+                top: y_cursor + 1,
+                right: pad_x + 100,
+                bottom: y_cursor + 19,
+            };
+            dibujar_texto(
+                mem_dc,
+                "Subida",
+                &mut rect_lbl_up,
+                color_texto_secundario,
+                false,
+                false,
+            );
 
             SelectObject(mem_dc, font_valores);
-            let mut rect_v_up = RECT { left: pad_x + ancho_util - 120, top: y_cursor + 1, right: pad_x + ancho_util, bottom: y_cursor + 19 };
+            let mut rect_v_up = RECT {
+                left: pad_x + ancho_util - 120,
+                top: y_cursor + 1,
+                right: pad_x + ancho_util,
+                bottom: y_cursor + 19,
+            };
             let txt_vel_up = formatear_velocidad(red.velocidad_subida_bps);
-            dibujar_texto(mem_dc, &txt_vel_up, &mut rect_v_up, color_texto_principal, true, false);
+            dibujar_texto(
+                mem_dc,
+                &txt_vel_up,
+                &mut rect_v_up,
+                color_texto_principal,
+                true,
+                false,
+            );
             y_cursor += 28;
         }
 
@@ -497,8 +789,20 @@ fn pintar_panel(
         if config.modulos.mostrar_discos {
             if discos.unidades.is_empty() {
                 SelectObject(mem_dc, font_etiquetas);
-                let mut rect_d_label = RECT { left: pad_x, top: y_cursor, right: pad_x + ancho_util, bottom: y_cursor + 18 };
-                dibujar_texto(mem_dc, "💾 Discos: sin unidades detectadas", &mut rect_d_label, color_texto_secundario, false, false);
+                let mut rect_d_label = RECT {
+                    left: pad_x,
+                    top: y_cursor,
+                    right: pad_x + ancho_util,
+                    bottom: y_cursor + 18,
+                };
+                dibujar_texto(
+                    mem_dc,
+                    "💾 Discos: sin unidades detectadas",
+                    &mut rect_d_label,
+                    color_texto_secundario,
+                    false,
+                    false,
+                );
                 y_cursor += 30;
             } else {
                 let max_mostrar = discos.unidades.len().min(4);
@@ -508,7 +812,10 @@ fn pintar_panel(
                         format!("💾 Disco {} — {}", disco.letra, disco.tipo_medio)
                     } else {
                         let etiqueta_corta = truncar_texto(&disco.etiqueta, 13);
-                        format!("💾 Disco {} ({}) — {}", disco.letra, etiqueta_corta, disco.tipo_medio)
+                        format!(
+                            "💾 Disco {} ({}) — {}",
+                            disco.letra, etiqueta_corta, disco.tipo_medio
+                        )
                     };
 
                     SelectObject(mem_dc, font_etiquetas);
@@ -518,7 +825,14 @@ fn pintar_panel(
                         right: pad_x + ancho_util - 48,
                         bottom: y_cursor + 17,
                     };
-                    dibujar_texto(mem_dc, &etiqueta_disco, &mut rect_d_label, color_texto_principal, false, false);
+                    dibujar_texto(
+                        mem_dc,
+                        &etiqueta_disco,
+                        &mut rect_d_label,
+                        color_texto_principal,
+                        false,
+                        false,
+                    );
 
                     SelectObject(mem_dc, font_valores);
                     let mut rect_d_pct = RECT {
@@ -528,17 +842,40 @@ fn pintar_panel(
                         bottom: y_cursor + 17,
                     };
                     let txt_pct = format!("{:.0}%", disco.porcentaje_uso);
-                    dibujar_texto(mem_dc, &txt_pct, &mut rect_d_pct, color_acento_disco, true, false);
+                    dibujar_texto(
+                        mem_dc,
+                        &txt_pct,
+                        &mut rect_d_pct,
+                        color_acento_disco,
+                        true,
+                        false,
+                    );
 
                     // Línea 2: Barra de progreso a todo el ancho útil
                     let y_barra_d = y_cursor + 19;
                     let alto_barra = 4;
                     let fondo_barra = 0x0026221E;
-                    rellenar_rect(mem_dc, pad_x, y_barra_d, pad_x + ancho_util, y_barra_d + alto_barra, fondo_barra);
+                    rellenar_rect(
+                        mem_dc,
+                        pad_x,
+                        y_barra_d,
+                        pad_x + ancho_util,
+                        y_barra_d + alto_barra,
+                        fondo_barra,
+                    );
 
-                    let relleno_d_w = ((ancho_util as f64) * (disco.porcentaje_uso.clamp(0.0, 100.0) / 100.0)).round() as i32;
+                    let relleno_d_w = ((ancho_util as f64)
+                        * (disco.porcentaje_uso.clamp(0.0, 100.0) / 100.0))
+                        .round() as i32;
                     if relleno_d_w > 0 {
-                        rellenar_rect(mem_dc, pad_x, y_barra_d, pad_x + relleno_d_w, y_barra_d + alto_barra, color_acento_disco);
+                        rellenar_rect(
+                            mem_dc,
+                            pad_x,
+                            y_barra_d,
+                            pad_x + relleno_d_w,
+                            y_barra_d + alto_barra,
+                            color_acento_disco,
+                        );
                     }
 
                     // Línea 3: Desglose de capacidad (usado a la izquierda, libre a la derecha)
@@ -549,8 +886,18 @@ fn pintar_panel(
                         right: pad_x + ancho_util - 90,
                         bottom: y_cursor + 39,
                     };
-                    let txt_usado = format!("{:.0} GB usados de {:.0} GB", disco.usado_gb, disco.total_gb);
-                    dibujar_texto(mem_dc, &txt_usado, &mut rect_d_usado, color_texto_secundario, false, false);
+                    let txt_usado = format!(
+                        "{:.0} GB usados de {:.0} GB",
+                        disco.usado_gb, disco.total_gb
+                    );
+                    dibujar_texto(
+                        mem_dc,
+                        &txt_usado,
+                        &mut rect_d_usado,
+                        color_texto_secundario,
+                        false,
+                        false,
+                    );
 
                     let mut rect_d_libre = RECT {
                         left: pad_x + ancho_util - 90,
@@ -559,7 +906,14 @@ fn pintar_panel(
                         bottom: y_cursor + 39,
                     };
                     let txt_libre = format!("{:.0} GB libres", disco.libre_gb);
-                    dibujar_texto(mem_dc, &txt_libre, &mut rect_d_libre, color_texto_secundario, true, false);
+                    dibujar_texto(
+                        mem_dc,
+                        &txt_libre,
+                        &mut rect_d_libre,
+                        color_texto_secundario,
+                        true,
+                        false,
+                    );
 
                     y_cursor += 44;
                 }
@@ -573,15 +927,32 @@ fn pintar_panel(
 
             // Cabecera: Título a la izquierda y selector RAM/CPU a la derecha
             SelectObject(mem_dc, font_etiquetas);
-            let mut rect_tp_label = RECT { left: pad_x, top: y_cursor, right: pad_x + 130, bottom: y_cursor + 18 };
-            dibujar_texto(mem_dc, "⚡ Top Procesos", &mut rect_tp_label, color_texto_principal, false, false);
+            let mut rect_tp_label = RECT {
+                left: pad_x,
+                top: y_cursor,
+                right: pad_x + 130,
+                bottom: y_cursor + 18,
+            };
+            dibujar_texto(
+                mem_dc,
+                "⚡ Top Procesos",
+                &mut rect_tp_label,
+                color_texto_principal,
+                false,
+                false,
+            );
 
             let txt_modo = match modo_procesos {
                 ModoTopProcesos::Ram => "[RAM]  CPU",
                 ModoTopProcesos::Cpu => " RAM  [CPU]",
             };
             SelectObject(mem_dc, font_detalle);
-            let mut rect_tp_sel = RECT { left: pad_x + ancho_util - 85, top: y_cursor, right: pad_x + ancho_util, bottom: y_cursor + 18 };
+            let mut rect_tp_sel = RECT {
+                left: pad_x + ancho_util - 85,
+                top: y_cursor,
+                right: pad_x + ancho_util,
+                bottom: y_cursor + 18,
+            };
             let color_sel = match modo_procesos {
                 ModoTopProcesos::Ram => color_acento_ram,
                 ModoTopProcesos::Cpu => color_acento_cpu,
@@ -592,8 +963,20 @@ fn pintar_panel(
 
             if top_procesos.is_empty() {
                 SelectObject(mem_dc, font_detalle);
-                let mut rect_tp_vacio = RECT { left: pad_x, top: y_cursor, right: pad_x + ancho_util, bottom: y_cursor + 16 };
-                dibujar_texto(mem_dc, "Analizando procesos...", &mut rect_tp_vacio, color_texto_secundario, false, false);
+                let mut rect_tp_vacio = RECT {
+                    left: pad_x,
+                    top: y_cursor,
+                    right: pad_x + ancho_util,
+                    bottom: y_cursor + 16,
+                };
+                dibujar_texto(
+                    mem_dc,
+                    "Analizando procesos...",
+                    &mut rect_tp_vacio,
+                    color_texto_secundario,
+                    false,
+                    false,
+                );
                 y_cursor += 18;
             } else {
                 for (idx, proc) in top_procesos.iter().enumerate() {
@@ -601,8 +984,20 @@ fn pintar_panel(
                     let texto_proc = format!("{}. {}", idx + 1, nombre_proc);
 
                     SelectObject(mem_dc, font_detalle);
-                    let mut rect_p_nom = RECT { left: pad_x, top: y_cursor, right: pad_x + ancho_util - 75, bottom: y_cursor + 16 };
-                    dibujar_texto(mem_dc, &texto_proc, &mut rect_p_nom, color_texto_principal, false, false);
+                    let mut rect_p_nom = RECT {
+                        left: pad_x,
+                        top: y_cursor,
+                        right: pad_x + ancho_util - 75,
+                        bottom: y_cursor + 16,
+                    };
+                    dibujar_texto(
+                        mem_dc,
+                        &texto_proc,
+                        &mut rect_p_nom,
+                        color_texto_principal,
+                        false,
+                        false,
+                    );
 
                     let valor_proc = match modo_procesos {
                         ModoTopProcesos::Ram => proc.memoria_formateada(),
@@ -614,7 +1009,12 @@ fn pintar_panel(
                         ModoTopProcesos::Cpu => color_acento_cpu,
                     };
 
-                    let mut rect_p_val = RECT { left: pad_x + ancho_util - 75, top: y_cursor, right: pad_x + ancho_util, bottom: y_cursor + 16 };
+                    let mut rect_p_val = RECT {
+                        left: pad_x + ancho_util - 75,
+                        top: y_cursor,
+                        right: pad_x + ancho_util,
+                        bottom: y_cursor + 16,
+                    };
                     dibujar_texto(mem_dc, &valor_proc, &mut rect_p_val, color_val, true, false);
 
                     y_cursor += 17;
@@ -637,8 +1037,20 @@ fn pintar_panel(
 
             let texto_termico = format!("🌡 CPU: {}   |   GPU: {}", txt_cpu_temp, txt_gpu_temp);
 
-            let mut rect_temp = RECT { left: pad_x, top: y_cursor, right: pad_x + ancho_util, bottom: y_cursor + 18 };
-            dibujar_texto(mem_dc, &texto_termico, &mut rect_temp, color_texto_secundario, false, false);
+            let mut rect_temp = RECT {
+                left: pad_x,
+                top: y_cursor,
+                right: pad_x + ancho_util,
+                bottom: y_cursor + 18,
+            };
+            dibujar_texto(
+                mem_dc,
+                &texto_termico,
+                &mut rect_temp,
+                color_texto_secundario,
+                false,
+                false,
+            );
         }
 
         // --- BARRA SUPERIOR FLOTANTE INTELIGENTE (OCULTA POR DEFECTO) ---
@@ -655,7 +1067,14 @@ fn pintar_panel(
                 right: ancho - 56,
                 bottom: 23,
             };
-            dibujar_texto(mem_dc, "NEXUS MONITOR", &mut rect_encabezado, color_texto_secundario, false, false);
+            dibujar_texto(
+                mem_dc,
+                "NEXUS MONITOR",
+                &mut rect_encabezado,
+                color_texto_secundario,
+                false,
+                false,
+            );
 
             // Botón [⚙] Configuración
             let x_cfg_l = ancho - 48;
@@ -663,9 +1082,18 @@ fn pintar_panel(
             let x_cfg_r = ancho - 30;
             let y_cfg_b = 24;
 
-            let color_cfg = if hover_config { color_texto_principal } else { color_texto_secundario };
+            let color_cfg = if hover_config {
+                color_texto_principal
+            } else {
+                color_texto_secundario
+            };
             SelectObject(mem_dc, font_etiquetas);
-            let mut rect_btn_cfg = RECT { left: x_cfg_l, top: y_cfg_t, right: x_cfg_r, bottom: y_cfg_b };
+            let mut rect_btn_cfg = RECT {
+                left: x_cfg_l,
+                top: y_cfg_t,
+                right: x_cfg_r,
+                bottom: y_cfg_b,
+            };
             dibujar_texto(mem_dc, "⚙", &mut rect_btn_cfg, color_cfg, false, true);
 
             // Botón [X] Cierre
@@ -684,7 +1112,12 @@ fn pintar_panel(
                 rellenar_rect(mem_dc, x_btn_l, y_btn_t, x_btn_r, y_btn_b, color_fondo_x);
             }
 
-            let mut rect_btn_x = RECT { left: x_btn_l, top: y_btn_t, right: x_btn_r, bottom: y_btn_b };
+            let mut rect_btn_x = RECT {
+                left: x_btn_l,
+                top: y_btn_t,
+                right: x_btn_r,
+                bottom: y_btn_b,
+            };
             dibujar_texto(mem_dc, "x", &mut rect_btn_x, color_cruz, false, true);
         }
 
@@ -710,7 +1143,11 @@ fn calcular_altura_panel(config: &Configuracion, cantidad_discos: usize) -> i32 
     let mut alto = 10; // Inicio sin barra fija reservada (máxima compacidad)
 
     if config.modulos.mostrar_cpu {
-        alto += if config.modulos.mostrar_graficas { 76 } else { 38 } + 10;
+        alto += if config.modulos.mostrar_graficas {
+            76
+        } else {
+            38
+        } + 10;
     }
     if config.modulos.mostrar_ram {
         alto += 30;
@@ -757,9 +1194,15 @@ pub fn notificar_actualizacion_configuracion(nueva_config: Configuracion) {
                         SWP_NOZORDER | windows_sys::Win32::UI::WindowsAndMessaging::SWP_NOMOVE,
                     );
 
-                    let rgn = CreateRoundRectRgn(0, 0, estado.ancho_panel + 1, nuevo_alto + 1, 24, 24);
+                    let rgn =
+                        CreateRoundRectRgn(0, 0, estado.ancho_panel + 1, nuevo_alto + 1, 24, 24);
                     SetWindowRgn(hwnd_h, rgn, 1);
-                    SetLayeredWindowAttributes(hwnd_h, 0, estado.config.ventana.opacidad, LWA_ALPHA);
+                    SetLayeredWindowAttributes(
+                        hwnd_h,
+                        0,
+                        estado.config.ventana.opacidad,
+                        LWA_ALPHA,
+                    );
                     InvalidateRect(hwnd_h, ptr::null(), 0);
                 }
             }
@@ -797,7 +1240,9 @@ unsafe extern "system" fn wnd_proc(
                 TrackMouseEvent(&mut tme);
 
                 let (ancho, barra_visible) = if let Ok(lock) = ESTADO.lock() {
-                    lock.as_ref().map(|s| (s.ancho_panel, s.barra_visible)).unwrap_or((290, false))
+                    lock.as_ref()
+                        .map(|s| (s.ancho_panel, s.barra_visible))
+                        .unwrap_or((290, false))
                 } else {
                     (290, false)
                 };
@@ -813,13 +1258,26 @@ unsafe extern "system" fn wnd_proc(
                 let mut cancelar_timer_ocultar = false;
                 let mut repintar = false;
 
-                let sobre_x = barra_visible && pt.x >= (ancho - 26) && pt.x <= (ancho - 8) && pt.y >= 6 && pt.y <= 26;
-                let sobre_cfg = barra_visible && pt.x >= (ancho - 48) && pt.x <= (ancho - 30) && pt.y >= 6 && pt.y <= 26;
+                let sobre_x = barra_visible
+                    && pt.x >= (ancho - 26)
+                    && pt.x <= (ancho - 8)
+                    && pt.y >= 6
+                    && pt.y <= 26;
+                let sobre_cfg = barra_visible
+                    && pt.x >= (ancho - 48)
+                    && pt.x <= (ancho - 30)
+                    && pt.y >= 6
+                    && pt.y <= 26;
 
                 let sobre_selector = if let Ok(lock) = ESTADO.lock() {
                     if let Some(estado) = lock.as_ref() {
-                        if estado.config.modulos.mostrar_top_procesos && estado.y_selector_procesos > 0 {
-                            pt.x >= (ancho - 105) && pt.x <= (ancho - 16) && pt.y >= estado.y_selector_procesos && pt.y <= (estado.y_selector_procesos + 20)
+                        if estado.config.modulos.mostrar_top_procesos
+                            && estado.y_selector_procesos > 0
+                        {
+                            pt.x >= (ancho - 105)
+                                && pt.x <= (ancho - 16)
+                                && pt.y >= estado.y_selector_procesos
+                                && pt.y <= (estado.y_selector_procesos + 20)
                         } else {
                             false
                         }
@@ -860,7 +1318,9 @@ unsafe extern "system" fn wnd_proc(
                                     cancelar_timer_ocultar = true;
                                 }
                             } else {
-                                if estado.estado_barra == EstadoBarraSuperior::Visible && !crate::ui_config::esta_config_abierta() {
+                                if estado.estado_barra == EstadoBarraSuperior::Visible
+                                    && !crate::ui_config::esta_config_abierta()
+                                {
                                     estado.estado_barra = EstadoBarraSuperior::EsperandoOcultacion;
                                     iniciar_timer_ocultar = true;
                                 }
@@ -904,7 +1364,9 @@ unsafe extern "system" fn wnd_proc(
                         if estado.estado_barra == EstadoBarraSuperior::EsperandoAparicion {
                             estado.estado_barra = EstadoBarraSuperior::Oculta;
                             cancelar_mostrar = true;
-                        } else if estado.barra_visible && estado.estado_barra == EstadoBarraSuperior::Visible {
+                        } else if estado.barra_visible
+                            && estado.estado_barra == EstadoBarraSuperior::Visible
+                        {
                             if !crate::ui_config::esta_config_abierta() {
                                 estado.estado_barra = EstadoBarraSuperior::EsperandoOcultacion;
                                 iniciar_ocultar = true;
@@ -942,14 +1404,22 @@ unsafe extern "system" fn wnd_proc(
                         } else if estado.barra_visible && estado.hover_config {
                             accion_config = true;
                             config_copia = Some(estado.config.clone());
-                        } else if estado.config.modulos.mostrar_top_procesos && estado.y_selector_procesos > 0 {
+                        } else if estado.config.modulos.mostrar_top_procesos
+                            && estado.y_selector_procesos > 0
+                        {
                             let ancho = estado.ancho_panel;
-                            if pt.x >= (ancho - 105) && pt.x <= (ancho - 16) && pt.y >= estado.y_selector_procesos && pt.y <= (estado.y_selector_procesos + 20) {
+                            if pt.x >= (ancho - 105)
+                                && pt.x <= (ancho - 16)
+                                && pt.y >= estado.y_selector_procesos
+                                && pt.y <= (estado.y_selector_procesos + 20)
+                            {
                                 estado.modo_procesos = match estado.modo_procesos {
                                     ModoTopProcesos::Ram => ModoTopProcesos::Cpu,
                                     ModoTopProcesos::Cpu => ModoTopProcesos::Ram,
                                 };
-                                estado.top_procesos = estado.recolector_procesos.obtener_top_3(estado.modo_procesos);
+                                estado.top_procesos = estado
+                                    .recolector_procesos
+                                    .obtener_top_3(estado.modo_procesos);
                                 clic_selector = true;
                             }
                         }
@@ -1033,7 +1503,11 @@ unsafe extern "system" fn wnd_proc(
                     let mut activar = false;
                     if let Ok(mut lock) = ESTADO.lock() {
                         if let Some(estado) = lock.as_mut() {
-                            if pt_client.x >= 0 && pt_client.x <= estado.ancho_panel && pt_client.y >= 0 && pt_client.y <= 28 {
+                            if pt_client.x >= 0
+                                && pt_client.x <= estado.ancho_panel
+                                && pt_client.y >= 0
+                                && pt_client.y <= 28
+                            {
                                 estado.barra_visible = true;
                                 estado.estado_barra = EstadoBarraSuperior::Visible;
                                 activar = true;
@@ -1060,7 +1534,11 @@ unsafe extern "system" fn wnd_proc(
                     let mut desactivar = false;
                     if let Ok(mut lock) = ESTADO.lock() {
                         if let Some(estado) = lock.as_mut() {
-                            if pt_client.x >= 0 && pt_client.x <= estado.ancho_panel && pt_client.y >= 0 && pt_client.y <= 28 {
+                            if pt_client.x >= 0
+                                && pt_client.x <= estado.ancho_panel
+                                && pt_client.y >= 0
+                                && pt_client.y <= 28
+                            {
                                 estado.estado_barra = EstadoBarraSuperior::Visible;
                             } else {
                                 estado.barra_visible = false;
@@ -1121,13 +1599,17 @@ unsafe extern "system" fn wnd_proc(
                             if estado.config.modulos.mostrar_top_procesos {
                                 estado.tick_procesos += 1;
                                 if estado.tick_procesos >= 2 {
-                                    estado.top_procesos = estado.recolector_procesos.obtener_top_3(estado.modo_procesos);
+                                    estado.top_procesos = estado
+                                        .recolector_procesos
+                                        .obtener_top_3(estado.modo_procesos);
                                     estado.tick_procesos = 0;
                                 }
                             }
 
                             // Métricas de Temperatura
-                            estado.temperaturas = estado.recolector_temperaturas.actualizar(estado.gpu.temperatura_celsius);
+                            estado.temperaturas = estado
+                                .recolector_temperaturas
+                                .actualizar(estado.gpu.temperatura_celsius);
                         }
                     }
 
@@ -1180,9 +1662,29 @@ unsafe extern "system" fn wnd_proc(
                     None
                 };
 
-                if let Some((ancho, alto, cpu, ghz, h_cpu, ram, red, gpu, h_gpu, discos, top_proc, modo_proc, temps, h_cerrar, h_cfg, barra_vis, cfg)) = datos {
+                if let Some((
+                    ancho,
+                    alto,
+                    cpu,
+                    ghz,
+                    h_cpu,
+                    ram,
+                    red,
+                    gpu,
+                    h_gpu,
+                    discos,
+                    top_proc,
+                    modo_proc,
+                    temps,
+                    h_cerrar,
+                    h_cfg,
+                    barra_vis,
+                    cfg,
+                )) = datos
+                {
                     let y_sel = pintar_panel(
-                        hdc, ancho, alto, cpu, ghz, &h_cpu, ram, &red, &gpu, &h_gpu, &discos, &top_proc, modo_proc, &temps, h_cerrar, h_cfg, barra_vis, &cfg,
+                        hdc, ancho, alto, cpu, ghz, &h_cpu, ram, &red, &gpu, &h_gpu, &discos,
+                        &top_proc, modo_proc, &temps, h_cerrar, h_cfg, barra_vis, &cfg,
                     );
                     if let Ok(mut lock) = ESTADO.lock() {
                         if let Some(estado) = lock.as_mut() {
@@ -1370,20 +1872,32 @@ fn main() {
 
         ShowWindow(hwnd, SW_SHOW);
 
-        println!("[Nexus] Monitor v0.4.0 iniciado con éxito en (X={}, Y={}).", pos_x, pos_y);
+        println!(
+            "[Nexus] Monitor v0.4.0 iniciado con éxito en (X={}, Y={}).",
+            pos_x, pos_y
+        );
         println!("  - Módulos activos: CPU, RAM, GPU, Red, Discos, Top Procesos y Temperaturas.");
         for disco in &discos_inicial.unidades {
-            println!("  - Unidad detectada: {} ({}) — {} | {:.0}/{:.0} GB ({:.0}%)",
+            println!(
+                "  - Unidad detectada: {} ({}) — {} | {:.0}/{:.0} GB ({:.0}%)",
                 disco.letra,
-                if disco.etiqueta.is_empty() { "sin etiqueta" } else { &disco.etiqueta },
+                if disco.etiqueta.is_empty() {
+                    "sin etiqueta"
+                } else {
+                    &disco.etiqueta
+                },
                 disco.tipo_medio,
                 disco.usado_gb,
                 disco.total_gb,
                 disco.porcentaje_uso,
             );
         }
-        println!("  - Barra superior inteligente: Permanece oculta hasta posar el cursor 1 segundo en el borde superior.");
-        println!("  - Inicio automático: Registrado en HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run.");
+        println!(
+            "  - Barra superior inteligente: Permanece oculta hasta posar el cursor 1 segundo en el borde superior."
+        );
+        println!(
+            "  - Inicio automático: Registrado en HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run."
+        );
         println!("  - Cierre: Botón [x] o Alt + F4.\n");
 
         let mut msg: MSG = mem::zeroed();

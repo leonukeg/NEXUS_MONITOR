@@ -6,11 +6,10 @@
 
 use std::mem;
 
-use windows_sys::Win32::Graphics::Gdi::{EnumDisplayDevicesW, DISPLAY_DEVICEW};
+use windows_sys::Win32::Graphics::Gdi::{DISPLAY_DEVICEW, EnumDisplayDevicesW};
 use windows_sys::Win32::System::Performance::{
-    PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData,
-    PdhGetFormattedCounterValue, PdhOpenQueryW, PDH_FMT_COUNTERVALUE,
-    PDH_FMT_DOUBLE,
+    PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE, PdhAddEnglishCounterW, PdhCloseQuery,
+    PdhCollectQueryData, PdhGetFormattedCounterValue, PdhOpenQueryW,
 };
 
 /// Información de la tarjeta gráfica y memoria de vídeo.
@@ -81,7 +80,8 @@ impl RecolectorGPU {
             let mut i = 0;
             while EnumDisplayDevicesW(std::ptr::null(), i, &mut dev, 0) != 0 {
                 // Buscamos el dispositivo que no sea espejo (mirroring) y que esté activo
-                if dev.StateFlags & 1 != 0 { // 1 = DISPLAY_DEVICE_ATTACHED_TO_DESKTOP
+                if dev.StateFlags & 1 != 0 {
+                    // 1 = DISPLAY_DEVICE_ATTACHED_TO_DESKTOP
                     let slice = &dev.DeviceString;
                     let mut len = 0;
                     while len < slice.len() && slice[len] != 0 {
@@ -108,7 +108,13 @@ impl RecolectorGPU {
             unsafe {
                 if PdhCollectQueryData(query) == 0 {
                     let mut valor: PDH_FMT_COUNTERVALUE = mem::zeroed();
-                    if PdhGetFormattedCounterValue(counter, PDH_FMT_DOUBLE, std::ptr::null_mut(), &mut valor) == 0 {
+                    if PdhGetFormattedCounterValue(
+                        counter,
+                        PDH_FMT_DOUBLE,
+                        std::ptr::null_mut(),
+                        &mut valor,
+                    ) == 0
+                    {
                         uso = valor.Anonymous.doubleValue.clamp(0.0, 100.0);
                     }
                 }

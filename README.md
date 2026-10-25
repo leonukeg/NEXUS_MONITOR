@@ -4,7 +4,7 @@
 
 ![Rust Version](https://img.shields.io/badge/Rust-2024_Edition-orange?logo=rust)
 ![Platform](https://img.shields.io/badge/Platform-Windows_10%20%7C%2011_x64-blue?logo=windows)
-![License](https://img.shields.io/badge/License-MIT-green)
+![License](https://img.shields.io/badge/License-GPL--3.0--or--later-blue?logo=gnu)
 ![Release](https://img.shields.io/badge/Version-v0.4.0-blueviolet)
 ![RAM Overhead](https://img.shields.io/badge/RAM_Overhead-~35_MB-brightgreen)
 ![CPU Overhead](https://img.shields.io/badge/CPU_Overhead-%3C0.5%25-brightgreen)
@@ -234,4 +234,15 @@ Contributions, bug reports, and suggestions are welcome!
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). You are free to use, modify, and distribute this software in accordance with the terms of the license.
+Nexus Monitor is free software: you can redistribute it and/or modify it under the terms of the **GNU General Public License** as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version ([`GPL-3.0-or-later`](LICENSE)).
+
+### Rights & Obligations
+- **Freedoms:** You are granted the freedom to run, inspect, share, study, and modify this software for any purpose.
+- **Copyleft (Reciprocity):** If you distribute modified versions or binaries of Nexus Monitor, you must make the corresponding complete machine-readable source code available to recipients under the same GNU GPL license terms.
+- **Tivoization & Patent Protection:** GPLv3 guarantees protection against patent retaliation and prohibits hardware vendor restrictions that prevent users from running modified binaries on their hardware.
+- **No Warranty:** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+For complete legal terms and conditions, consult the official [`LICENSE`](LICENSE) file.
+
+### Third-Party Components & Attributions
+Nexus Monitor utilizes direct Win32 bindings and serialization libraries (`windows-sys`, `serde`, `toml`) licensed under permissive open-source terms (**MIT** and **Apache-2.0**). These third-party components remain subject to their original copyright notices and permissive terms, which are fully compatible with and respected by the GNU GPL v3 license.

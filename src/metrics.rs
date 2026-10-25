@@ -5,13 +5,10 @@ use std::time::Instant;
 
 use windows_sys::Win32::Foundation::FILETIME;
 use windows_sys::Win32::System::Performance::{
-    PdhAddEnglishCounterW, PdhCloseQuery, PdhCollectQueryData,
-    PdhGetFormattedCounterValue, PdhOpenQueryW, PDH_FMT_COUNTERVALUE,
-    PDH_FMT_DOUBLE,
+    PDH_FMT_COUNTERVALUE, PDH_FMT_DOUBLE, PdhAddEnglishCounterW, PdhCloseQuery,
+    PdhCollectQueryData, PdhGetFormattedCounterValue, PdhOpenQueryW,
 };
-use windows_sys::Win32::System::SystemInformation::{
-    GlobalMemoryStatusEx, MEMORYSTATUSEX,
-};
+use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 use windows_sys::Win32::System::Threading::GetSystemTimes;
 
 /// Información procesada de memoria RAM.
@@ -78,10 +75,7 @@ pub fn obtener_tiempos_cpu() -> Option<(u64, u64, u64)> {
 }
 
 /// Calcula el porcentaje de uso de CPU a partir de dos muestras consecutivas.
-pub fn calcular_porcentaje_cpu(
-    prev: (u64, u64, u64),
-    actual: (u64, u64, u64),
-) -> f64 {
+pub fn calcular_porcentaje_cpu(prev: (u64, u64, u64), actual: (u64, u64, u64)) -> f64 {
     let (idle_prev, kernel_prev, user_prev) = prev;
     let (idle_act, kernel_act, user_act) = actual;
 
@@ -127,7 +121,8 @@ impl RecolectorMetricas {
             if PdhOpenQueryW(std::ptr::null(), 0, &mut query) == 0 {
                 let mut counter: isize = 0;
                 // Contador en inglés estándar para la frecuencia de CPU
-                let ruta_counter = crate::a_wstring("\\Processor Information(_Total)\\Processor Frequency");
+                let ruta_counter =
+                    crate::a_wstring("\\Processor Information(_Total)\\Processor Frequency");
                 if PdhAddEnglishCounterW(query, ruta_counter.as_ptr(), 0, &mut counter) == 0 {
                     let _ = PdhCollectQueryData(query);
                     self.query_pdh = Some(query);
@@ -161,7 +156,13 @@ impl RecolectorMetricas {
                 unsafe {
                     if PdhCollectQueryData(query) == 0 {
                         let mut valor: PDH_FMT_COUNTERVALUE = mem::zeroed();
-                        if PdhGetFormattedCounterValue(counter, PDH_FMT_DOUBLE, std::ptr::null_mut(), &mut valor) == 0 {
+                        if PdhGetFormattedCounterValue(
+                            counter,
+                            PDH_FMT_DOUBLE,
+                            std::ptr::null_mut(),
+                            &mut valor,
+                        ) == 0
+                        {
                             let mhz = valor.Anonymous.doubleValue;
                             if mhz > 100.0 {
                                 self.ultima_frecuencia_ghz = Some(mhz / 1000.0);
