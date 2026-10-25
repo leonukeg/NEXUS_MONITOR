@@ -1,0 +1,25 @@
+[package]
+name = "Nexus"
+version = "0.4.0"
+edition = "2024"
+
+[dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Gdi",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_NetworkManagement_Ndis",
+    "Win32_Networking_WinSock",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Performance",
+    "Win32_UI_Controls",
+    "Win32_System_IO",
+    "Win32_Security",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Registry",
+] }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.8"

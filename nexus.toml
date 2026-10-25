@@ -1,0 +1,39 @@
+[ventana]
+posicion_x = 1587
+posicion_y = 16
+opacidad = 230
+
+[modulos]
+mostrar_cpu = true
+mostrar_ram = true
+mostrar_red = true
+mostrar_gpu = true
+mostrar_discos = true
+mostrar_temperaturas = true
+mostrar_graficas = true
+mostrar_top_procesos = true
+modo_top_procesos = "ram"
+
+[colores]
+fondo = "#14151C"
+fondo_tarjeta = "#1E202A"
+borde = "#2B2E3C"
+acento_cpu = "#38BDF8"
+acento_cpu_alto = "#FB923C"
+acento_ram = "#2DD4BF"
+acento_ram_alto = "#F43F5E"
+acento_descarga = "#2DD4BF"
+acento_subida = "#FB923C"
+acento_gpu = "#C084FC"
+acento_disco = "#FACC15"
+texto_principal = "#FFFFFF"
+texto_secundario = "#94A3B8"
+
+[tipografia]
+fuente = "Segoe UI"
+tamano_base = 13
+
+[comportamiento]
+longitud_historial = 28
+intervalo_actualizacion_ms = 1000
+iniciar_con_windows = true

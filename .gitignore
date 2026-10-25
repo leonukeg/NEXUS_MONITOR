@@ -1,0 +1,25 @@
+# Rust build output
+/target/
+**/*.rs.bk
+*.pdb
+
+# Inno Setup output
+/dist/
+Output/
+
+# Raw development screenshots (curated screenshots reside in docs/images/)
+/IMG/
+
+# Logs and temporary files
+*.log
+*.tmp
+debug_startup.log
+panic.log
+
+# IDE & OS files
+.idea/
+.vscode/
+*.user
+Thumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
